@@ -13,12 +13,13 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 from torch.distributions import MultivariateNormal
+from network import FeedForwardActorNN, FeedForwardCriticNN
 
 class PPO:
 	"""
 		This is the PPO class we will use as our model in main.py
 	"""
-	def __init__(self, policy_class, env, **hyperparameters):
+	def __init__(self, env, **hyperparameters):
 		"""
 			Initializes the PPO model, including hyperparameters.
 
@@ -43,8 +44,8 @@ class PPO:
 		self.act_dim = env.action_space.shape[0]
 
 		 # Initialize actor and critic networks
-		self.actor = policy_class(self.obs_dim, self.act_dim)                                                   # ALG STEP 1
-		self.critic = policy_class(self.obs_dim, 1)
+		self.actor = FeedForwardActorNN(self.obs_dim, self.act_dim)                                                   # ALG STEP 1
+		self.critic = FeedForwardCriticNN(self.obs_dim, 1)
 
 		# Initialize optimizers for actor and critic
 		self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
@@ -93,7 +94,7 @@ class PPO:
 			self.logger['i_so_far'] = i_so_far
 
 			# Calculate advantage at k-th iteration
-			V, _ = self.evaluate(batch_obs, batch_acts)
+			V, _, dist_old = self.evaluate(batch_obs, batch_acts)
 			A_k = batch_rtgs - V.detach()                                                                       # ALG STEP 5
 
 			# One of the only tricks I use that isn't in the pseudocode. Normalizing advantages
@@ -105,7 +106,7 @@ class PPO:
 			# This is the loop where we update our network for some n epochs
 			for _ in range(self.n_updates_per_iteration):                                                       # ALG STEP 6 & 7
 				# Calculate V_phi and pi_theta(a_t | s_t)
-				V, curr_log_probs = self.evaluate(batch_obs, batch_acts)
+				V, curr_log_probs, dist_new = self.evaluate(batch_obs, batch_acts)
 
 				# Calculate the ratio pi_theta(a_t | s_t) / pi_theta_k(a_t | s_t)
 				# NOTE: we just subtract the logs, which is the same as
@@ -138,6 +139,7 @@ class PPO:
 				self.critic_optim.step()
 
 				# Log actor loss
+				print(f'KL divergence ================= {torch.distributions.kl.kl_divergence(dist_old,dist_new).mean()}')
 				self.logger['actor_losses'].append(actor_loss.detach())
 
 			# Print a summary of our training so far
@@ -189,7 +191,7 @@ class PPO:
 			# Run an episode for a maximum of max_timesteps_per_episode timesteps
 			for ep_t in range(self.max_timesteps_per_episode):
 				# If render is specified, render the environment
-				if self.logger["t_so_far"] > 220000:
+				if self.logger["i_so_far"] % 30 == 0:
 					self.env.render()
 
 				# self.env.render()
@@ -203,8 +205,8 @@ class PPO:
 				# Note that rew is short for reward.
 				action, log_prob = self.get_action(obs)
 
-				if self.logger["t_so_far"] > 220000:
-					print("Action : ", action, " ; Observation : ", obs)
+				'''if self.logger["t_so_far"] > 220000:
+					print("Action : ", action, " ; Observation : ", obs)'''
 				
 				obs, rew, done, _ = self.env.step(action)
 
@@ -220,6 +222,7 @@ class PPO:
 			# Track episodic lengths and rewards
 			batch_lens.append(ep_t + 1)
 			batch_rews.append(ep_rews)
+			print(f'episode reward ======================== {np.sum(ep_rews)}')
 
 		# Reshape data as tensors in the shape specified in function description, before returning
 		batch_obs = torch.tensor(batch_obs, dtype=torch.float)
@@ -281,6 +284,7 @@ class PPO:
 		# For more information on how this distribution works, check out Andrew Ng's lecture on it:
 		# https://www.youtube.com/watch?v=JjB58InuTqM
 		dist = MultivariateNormal(mean, self.cov_mat)
+		dist_new = dist
 
 		# Sample an action from the distribution
 		action = dist.sample()
@@ -314,11 +318,12 @@ class PPO:
 		# This segment of code is similar to that in get_action()
 		mean = self.actor(batch_obs)
 		dist = MultivariateNormal(mean, self.cov_mat)
+		dist_old = dist
 		log_probs = dist.log_prob(batch_acts)
 
 		# Return the value vector V of each observation in the batch
 		# and log probabilities log_probs of each action in the batch
-		return V, log_probs
+		return V, log_probs, dist_old
 
 	def _init_hyperparameters(self, hyperparameters):
 		"""

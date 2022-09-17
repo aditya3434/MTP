@@ -58,17 +58,20 @@ class myEnv(gym.Env):
         if (action[0] <= 0 and self.ego_car.v <= 0):
             action[0] *= -1
 
-        self.ego_car.take_action([action[0], 0], self.dt)
-        self.back_car.take_action([0.5, 0], self.dt)
-        self.front_car.take_action([0.5, 0], self.dt)
+        #print(f'self.dt =============== {self.dt}')
 
+        self.ego_car.take_action([action[0], 0], self.dt)
+        self.back_car.take_action([0.2, 0], self.dt)
+        self.front_car.take_action([0.2, 0], self.dt)
+
+        # Reaching goal location 
         if (self.ego_car.x >= 950):
-            reward += 1000
+            reward += 100
             done = True
         
-        if abs(self.ego_car.y-400) > OFFROAD_DIST:
+        '''if abs(self.ego_car.y-400) > OFFROAD_DIST:
             reward -= 100
-            done = True
+            done = True'''
 
         back_dist = dist_euclid(self.ego_car, self.back_car)
         front_dist = dist_euclid(self.ego_car, self.front_car)
@@ -79,10 +82,17 @@ class myEnv(gym.Env):
 
         dist_error = abs(front_dist-back_dist)
 
-        reward += (self.ego_car.x//200)*10
+        #reward += (self.ego_car.x//200)*10
 
-        if (dist_error <= 5):
+        # Reward for movement
+        if(self.ego_car.v > 1):
             reward += 1
+        
+        if(back_dist < 60 or front_dist < 60):
+            reward -= 1
+
+        '''if (dist_error >= 2):
+            reward += 1'''
 
         obs = self.feature_scaling(np.hstack((self.ego_car.x, back_dist, front_dist)))
 
