@@ -14,6 +14,46 @@ import torch.nn as nn
 from torch.optim import Adam
 from torch.distributions import MultivariateNormal
 from network import FeedForwardActorNN, FeedForwardCriticNN
+from keras.callbacks import TensorBoard
+import tensorflow as tf
+
+class ModifiedTensorBoard(TensorBoard):
+
+	# Overriding init to set initial step and writer (we want one log file for all .fit() calls)
+	def __init__(self, **kwargs):
+		super().__init__(**kwargs)
+		self.step = 1
+		self.writer = tf.summary.create_file_writer(self.log_dir)
+
+	# Overriding this method to stop creating default log writer
+	def set_model(self, model):
+		pass
+
+	# Overrided, saves logs with our step number
+	# (otherwise every .fit() will start writing from 0th step)
+	def on_epoch_end(self, epoch, logs=None):
+		self.update_stats(**logs)
+
+	# Overrided
+	# We train for one batch only, no need to save anything at epoch end
+	def on_batch_end(self, batch, logs=None):
+		pass
+
+	# Overrided, so won't close writer
+	def on_train_end(self, _):
+		pass
+
+	# Custom method for saving own metrics
+	# Creates writer, writes custom metrics and closes writer
+	def update_stats(self, **stats):
+		self._write_logs(stats, self.step)
+
+	def _write_logs(self, logs, index):
+		with self.writer.as_default():
+			for name, value in logs.items():
+				tf.summary.scalar(name, value, step=index)
+				self.step += 1
+				self.writer.flush()
 
 class PPO:
 	"""
@@ -37,6 +77,7 @@ class PPO:
 
 		# Initialize hyperparameters for training with PPO
 		self._init_hyperparameters(hyperparameters)
+		self.tensorboard = ModifiedTensorBoard(log_dir="logs/{}-{}".format("PPO", int(time.time())))
 
 		# Extract environment information
 		self.env = env
@@ -140,6 +181,7 @@ class PPO:
 
 				# Log actor loss
 				print(f'KL divergence ================= {torch.distributions.kl.kl_divergence(dist_old,dist_new).mean()}')
+				self.tensorboard.update_stats(kl_div=float(torch.distributions.kl.kl_divergence(dist_old,dist_new).mean()))
 				self.logger['actor_losses'].append(actor_loss.detach())
 
 			# Print a summary of our training so far
@@ -223,6 +265,7 @@ class PPO:
 			batch_lens.append(ep_t + 1)
 			batch_rews.append(ep_rews)
 			print(f'episode reward ======================== {np.sum(ep_rews)}')
+			self.tensorboard.update_stats(epi_rew=np.sum(ep_rews))
 
 		# Reshape data as tensors in the shape specified in function description, before returning
 		batch_obs = torch.tensor(batch_obs, dtype=torch.float)
@@ -388,6 +431,8 @@ class PPO:
 		avg_ep_rews = np.mean([np.sum(ep_rews) for ep_rews in self.logger['batch_rews']])
 		avg_actor_loss = np.mean([losses.float().mean() for losses in self.logger['actor_losses']])
 
+		self.tensorboard.update_stats(avg_epi_rew=avg_ep_rews)
+
 		# Round decimal places for more aesthetic logging messages
 		avg_ep_lens = str(round(avg_ep_lens, 2))
 		avg_ep_rews = str(round(avg_ep_rews, 2))
@@ -403,6 +448,7 @@ class PPO:
 		print(f"Iteration took: {delta_t} secs", flush=True)
 		print(f"------------------------------------------------------", flush=True)
 		print(flush=True)
+		
 
 		# Reset batch-specific logging data
 		self.logger['batch_lens'] = []
