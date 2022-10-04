@@ -3,3 +3,4 @@ SingleAgent/__pycache__/
 
 SingleAgent/ppo_actor.pth
 SingleAgent/ppo_critic.pth
+SingleAgent/logs
