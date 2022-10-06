@@ -35,7 +35,7 @@ def dist_euclid(v1, v2):
 class myEnv(gym.Env):
 
     def __init__(self):
-        self.action_space = Box(-1, 1, shape=(1,), dtype=np.float32)
+        self.action_space = Box(-1, 1, shape=(2,), dtype=np.float32)
         self.observation_space = Box(-np.inf, np.inf, shape=(3,), dtype=np.float32)
 
         self.back_car = Vehicle(x_initial=0, y_initial=400)
@@ -54,13 +54,14 @@ class myEnv(gym.Env):
         done = False
 
         action[0] = np.clip(action[0], 0, 1)
+        action[1] = np.clip(action[1], -0.3, 0.3)
 
         if (action[0] <= 0 and self.ego_car.v <= 0):
             action[0] *= -1
 
-        #print(f'self.dt =============== {self.dt}')
+        #print(f'action =============== {action}')
 
-        self.ego_car.take_action([action[0], 0], self.dt)
+        self.ego_car.take_action([action[0], action[1]], self.dt)
         self.back_car.take_action([0.2, 0], self.dt)
         self.front_car.take_action([0.2, 0], self.dt)
 
@@ -69,9 +70,9 @@ class myEnv(gym.Env):
             reward += 100
             done = True
         
-        '''if abs(self.ego_car.y-400) > OFFROAD_DIST:
+        if abs(self.ego_car.y-400) > OFFROAD_DIST:
             reward -= 100
-            done = True'''
+            done = True
 
         back_dist = dist_euclid(self.ego_car, self.back_car)
         front_dist = dist_euclid(self.ego_car, self.front_car)
@@ -87,6 +88,12 @@ class myEnv(gym.Env):
         # Reward for movement
         if(self.ego_car.v > 1):
             reward += 1
+
+        if(self.ego_car.angle < 2):
+            reward += 1
+
+        if(self.ego_car.angle > 4):
+            reward -= 1
         
         if(back_dist < 60 or front_dist < 60):
             reward -= 1
