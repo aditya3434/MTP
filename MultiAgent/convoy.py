@@ -26,7 +26,7 @@ class Vehicle():
             return
 
         self.acc = action[0]
-        self.angle += 10*action[1]*dt
+        #self.angle += 10*action[1]*dt
         self.v += 10*self.acc*dt
         self.x += 10*self.v*np.cos(self.angle*np.pi/180)*dt
         self.y += 10*self.v*np.sin(self.angle*np.pi/180)*dt
@@ -52,7 +52,7 @@ class raw_env(AECEnv):
             zip(self.possible_agents, list(range(len(self.possible_agents))))
         )
 
-        self._action_spaces = {agent: Box(0, 1.0, (1, 2)) for agent in self.possible_agents}
+        self._action_spaces = {agent: Box(0, 1.0, (1, 1)) for agent in self.possible_agents}
         self._observation_spaces = {
             agent: Box(-1000, 1000, (1, 3)) for agent in self.possible_agents
         }
@@ -78,7 +78,7 @@ class raw_env(AECEnv):
         my_font = pygame.font.SysFont('Comic Sans MS', 30)
 
         pygame.draw.rect(self.screen, (125, 125, 125), [0, 400, 1000, 75])
-        finish = pygame.image.load('finish.jpg')
+        finish = pygame.image.load('../finish.jpg')
         finish = pygame.transform.rotate(finish, 90)
         finish = pygame.transform.scale(finish, (30, 75))
         self.screen.blit(finish, (950, 400))
@@ -87,7 +87,7 @@ class raw_env(AECEnv):
             vehicle = self.vehicles[self.agent_name_mapping[agent]]
             if self.dones[agent]:
                 continue
-            sprite = pygame.image.load('car.png')
+            sprite = pygame.image.load('../car.png')
             sprite = pygame.transform.rotate(sprite, -90)
             sprite = pygame.transform.scale(sprite, (80, 80))
 

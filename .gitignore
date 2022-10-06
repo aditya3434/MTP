@@ -1,6 +1,11 @@
 __pycache__/
-SingleAgent/__pycache__/
 
 SingleAgent/ppo_actor.pth
 SingleAgent/ppo_critic.pth
 SingleAgent/logs
+SingleAgent/__pycache__/
+
+MultiAgent/ppo_actor.pth
+MultiAgent/ppo_critic.pth
+MultiAgent/logs
+MultiAgent/__pycache__/
