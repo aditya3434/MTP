@@ -1,3 +1,39 @@
+import torch
+from torch.distributions import MultivariateNormal
+import numpy as np
+
+cov_var = torch.full(size=(2,), fill_value=0.8)
+cov_mat = torch.diag(cov_var)
+
+def get_action(policy, obs):
+	"""
+		Queries an action from the actor network, should be called from rollout.
+
+		Parameters:
+			obs - the observation at the current timestep
+
+		Return:
+			action - the action to take, as a numpy array
+			log_prob - the log probability of the selected action in the distribution
+	"""
+	# Query the actor network for a mean action
+	mean = policy(obs)
+
+	# Create a distribution with the mean action and std from the covariance matrix above.
+	# For more information on how this distribution works, check out Andrew Ng's lecture on it:
+	# https://www.youtube.com/watch?v=JjB58InuTqM
+	dist = MultivariateNormal(mean, cov_mat)
+	dist_new = dist
+
+	# Sample an action from the distribution
+	action = dist.sample()
+
+	# Calculate the log probability for that action
+	log_prob = dist.log_prob(action)
+
+	# Return the sampled action and the log probability of that action in our distribution
+	return action.detach().numpy(), mean.detach().numpy()
+
 def _log_summary(ep_len, ep_ret, ep_num):
 		"""
 			Print to stdout what we've logged so far in the most recent episode.
@@ -56,7 +92,8 @@ def rollout(policy, env, render):
 				env.render()
 
 			# Query deterministic action from policy and run it
-			action = policy(obs).detach().numpy()
+			action, mean = get_action(policy, obs)
+			print(np.round(action, 4), " : ", np.round(mean, 4))
 			obs, rew, done, _ = env.step(action)
 
 			# Sum all episodic rewards as we go along

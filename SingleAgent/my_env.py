@@ -113,7 +113,7 @@ class myEnv(gym.Env):
         self.state_max = np.hstack((1000, 2*GAP, 2*GAP))
         self.state_min = np.hstack((0, 0, 0))
 
-        return np.array([0, 0.5, 0.5], dtype=np.float32)
+        return np.array([GAP, 0.5, 0.5], dtype=np.float32)
 
     def draw(self):
 
