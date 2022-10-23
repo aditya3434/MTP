@@ -2,7 +2,6 @@ from my_env import myEnv
 import sys
 import torch
 
-from ppo import PPO
 from network import FeedForwardActorNN
 from eval_policy import eval_policy
 
