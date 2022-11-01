@@ -6,8 +6,8 @@ from pettingzoo.utils import agent_selector
 import pygame
 
 FPS = 100
-GAP = 90
-COLLISION_DIST = 65
+GAP = 100
+COLLISION_DIST = 55
 OFFROAD_DIST = 35
 
 class Vehicle():
@@ -27,9 +27,9 @@ class Vehicle():
 
         self.acc = action[0]
         #self.angle += 10*action[1]*dt
-        self.v += 10*self.acc*dt
-        self.x += 10*self.v*np.cos(self.angle*np.pi/180)*dt
-        self.y += 10*self.v*np.sin(self.angle*np.pi/180)*dt
+        self.v += 5*self.acc*dt
+        self.x += 5*self.v*np.cos(self.angle*np.pi/180)*dt
+        self.y += 5*self.v*np.sin(self.angle*np.pi/180)*dt
 
 def dist_euclid(v1, v2):
     return np.sqrt((v1.x-v2.x)**2+(v1.y-v2.y)**2)
@@ -85,8 +85,7 @@ class raw_env(AECEnv):
 
         for agent in self.agents:
             vehicle = self.vehicles[self.agent_name_mapping[agent]]
-            if self.dones[agent]:
-                continue
+            
             sprite = pygame.image.load('../car.png')
             sprite = pygame.transform.rotate(sprite, -90)
             sprite = pygame.transform.scale(sprite, (80, 80))
@@ -152,39 +151,50 @@ class raw_env(AECEnv):
 
         self.state[self.agent_selection] = action
 
+        action[0] = np.clip(action[0], 0, 1)
         vehicle.take_action(action, self.dt)
 
         if self._agent_selector.is_last():
             
             for agent in self.agents:
+
+                if self.dones[agent]:
+                    continue
+                
                 vehicle = self.vehicles[self.agent_name_mapping[agent]]
-                dist = 1000-vehicle.x
-                self.rewards[agent] = (100/dist)
+                self.rewards[agent] = 0
                 if (vehicle.x >= 950):
                     self.dones[agent] = True
                     vehicle.color = (0, 0, 255)
-                    self.rewards[agent] += 1000
+                    self.rewards[agent] += 300
 
                 index = self.agent_name_mapping[agent]
 
                 if abs(vehicle.y-400) > OFFROAD_DIST:
-                    self.rewards[agent] -= 1000
+                    self.rewards[agent] -= 100
                     self.done = True
-                    print("Vehicle offroad!")
-                
-                if index == 0 or index == len(self.agents)-1 or self.dones[agent]:
-                    continue
 
-                front = dist_euclid(vehicle, self.vehicles[index+1])
-                back = dist_euclid(vehicle, self.vehicles[index-1])
+                if index == len(self.agents)-1:
+                    front = GAP
+                    back = dist_euclid(vehicle, self.vehicles[index-1])
+                elif index == 0:
+                    front = dist_euclid(vehicle, self.vehicles[index+1])
+                    back = GAP
+                else:
+                    front = dist_euclid(vehicle, self.vehicles[index+1])
+                    back = dist_euclid(vehicle, self.vehicles[index-1])
 
                 if (front < COLLISION_DIST and self.dones[self.agents[index+1]] != True) or (back < COLLISION_DIST and self.dones[self.agents[index-1]] != True):
-                    self.rewards[agent] -= 1000
+                    self.rewards[agent] -= 100
                     self.done = True
-                    print("Collision detected!")
 
-            for i in self.agents:
-                self.observations[i] = self.vehicles[self.agent_name_mapping[i]].x
+                if(vehicle.v > 1):
+                    self.rewards[agent] += 0.3
+                
+                if(front < 60 or back < 60):
+                    self.rewards[agent] -= 0.3
+
+                self.observations[agent] = [self.vehicles[self.agent_name_mapping[agent]].x/1000, front/(2*GAP), back/(2*GAP)]
         else:
             self._clear_rewards()
 

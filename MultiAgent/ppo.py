@@ -4,6 +4,7 @@
 			It can be found here: https://spinningup.openai.com/en/latest/_images/math/e62a8971472597f4b014c2da064f636ffe365ba3.svg
 """
 
+from datetime import datetime
 import gym
 import time
 
@@ -17,43 +18,9 @@ from network import FeedForwardActorNN, FeedForwardCriticNN
 from keras.callbacks import TensorBoard
 import tensorflow as tf
 
-class ModifiedTensorBoard(TensorBoard):
-
-	# Overriding init to set initial step and writer (we want one log file for all .fit() calls)
-	def __init__(self, **kwargs):
-		super().__init__(**kwargs)
-		self.step = 1
-		self.writer = tf.summary.create_file_writer(self.log_dir)
-
-	# Overriding this method to stop creating default log writer
-	def set_model(self, model):
-		pass
-
-	# Overrided, saves logs with our step number
-	# (otherwise every .fit() will start writing from 0th step)
-	def on_epoch_end(self, epoch, logs=None):
-		self.update_stats(**logs)
-
-	# Overrided
-	# We train for one batch only, no need to save anything at epoch end
-	def on_batch_end(self, batch, logs=None):
-		pass
-
-	# Overrided, so won't close writer
-	def on_train_end(self, _):
-		pass
-
-	# Custom method for saving own metrics
-	# Creates writer, writes custom metrics and closes writer
-	def update_stats(self, **stats):
-		self._write_logs(stats, self.step)
-
-	def _write_logs(self, logs, index):
-		with self.writer.as_default():
-			for name, value in logs.items():
-				tf.summary.scalar(name, value, step=index)
-				self.step += 1
-				self.writer.flush()
+date_time = datetime.now()
+log_dir="logs/{} {}".format("PPO Log", date_time.strftime("(%d-%m-%Y, %H:%M:%S)"))
+writer = tf.summary.create_file_writer(log_dir)
 
 class PPO:
 	"""
@@ -71,18 +38,14 @@ class PPO:
 			Returns:
 				None
 		"""
-		# Make sure the environment is compatible with our code
-		assert(type(env.observation_space) == gym.spaces.Box)
-		assert(type(env.action_space) == gym.spaces.Box)
 
 		# Initialize hyperparameters for training with PPO
 		self._init_hyperparameters(hyperparameters)
-		self.tensorboard = ModifiedTensorBoard(log_dir="logs/{}-{}".format("PPO", int(time.time())))
 
 		# Extract environment information
 		self.env = env
-		self.obs_dim = env.observation_space.shape[0]
-		self.act_dim = env.action_space.shape[0]
+		self.obs_dim = 3
+		self.act_dim = 1
 
 		 # Initialize actor and critic networks
 		self.actor = FeedForwardActorNN(self.obs_dim, self.act_dim)                                                   # ALG STEP 1
@@ -180,9 +143,12 @@ class PPO:
 				self.critic_optim.step()
 
 				# Log actor loss
-				print(f'KL divergence ================= {torch.distributions.kl.kl_divergence(dist_old,dist_new).mean()}')
-				self.tensorboard.update_stats(kl_div=float(torch.distributions.kl.kl_divergence(dist_old,dist_new).mean()))
 				self.logger['actor_losses'].append(actor_loss.detach())
+
+			kl_div=float(torch.distributions.kl.kl_divergence(dist_old,dist_new).mean())
+
+			with writer.as_default():
+				tf.summary.scalar("kl_divergence", kl_div, i_so_far)
 
 			# Print a summary of our training so far
 			self._log_summary()
@@ -240,22 +206,32 @@ class PPO:
 
 				t += 1 # Increment timesteps ran this batch so far
 
-				# Track observations in this batch
-				batch_obs.append(obs)
-
-				# Calculate action and make a step in the env. 
-				# Note that rew is short for reward.
-				action, log_prob = self.get_action(obs)
-
 				'''if self.logger["t_so_far"] > 220000:
 					print("Action : ", action, " ; Observation : ", obs)'''
 				
-				obs, rew, done, _ = self.env.step(action)
+				for agent in self.env.agent_iter(3):
+					obs, _rew, _done, info = self.env.last()
+					
+					if obs.any() == None:
+						self.env.step([0.0])
+						continue
 
-				# Track recent reward, action, and action log probability
-				ep_rews.append(rew)
-				batch_acts.append(action)
-				batch_log_probs.append(log_prob)
+					action, log_prob = self.get_action(obs)
+					
+					self.env.step(action)
+
+					_, rew, _, _ = self.env.last()
+
+					# Track recent reward, action, and action log probability
+					ep_rews.append(rew)
+					batch_obs.append(obs)
+					batch_acts.append(action)
+					batch_log_probs.append(log_prob)
+
+					if (self.env.done):
+						done = True
+						break
+
 
 				# If the environment tells us the episode is terminated, break
 				if done:
@@ -265,7 +241,6 @@ class PPO:
 			batch_lens.append(ep_t + 1)
 			batch_rews.append(ep_rews)
 			print(f'episode reward ======================== {np.sum(ep_rews)}')
-			self.tensorboard.update_stats(epi_rew=np.sum(ep_rews))
 
 		# Reshape data as tensors in the shape specified in function description, before returning
 		batch_obs = torch.tensor(batch_obs, dtype=torch.float)
@@ -431,7 +406,11 @@ class PPO:
 		avg_ep_rews = np.mean([np.sum(ep_rews) for ep_rews in self.logger['batch_rews']])
 		avg_actor_loss = np.mean([losses.float().mean() for losses in self.logger['actor_losses']])
 
-		self.tensorboard.update_stats(avg_epi_rew=avg_ep_rews)
+		with writer.as_default():
+			tf.summary.scalar("avg_epi_rew", avg_ep_rews, i_so_far)
+			tf.summary.histogram("layer_1", self.actor.layer1.weight.detach().numpy(), i_so_far)
+			tf.summary.histogram("layer_2", self.actor.layer2.weight.detach().numpy(), i_so_far)
+			tf.summary.histogram("layer_3", self.actor.layer3.weight.detach().numpy(), i_so_far)
 
 		# Round decimal places for more aesthetic logging messages
 		avg_ep_lens = str(round(avg_ep_lens, 2))
