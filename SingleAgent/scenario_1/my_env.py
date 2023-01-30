@@ -118,12 +118,12 @@ class myEnv(gym.Env):
     def draw(self):
 
         pygame.draw.rect(self.screen, (125, 125, 125), [0, 400, 1000, 75])
-        finish = pygame.image.load('../finish.jpg')
+        finish = pygame.image.load('../../finish.jpg')
         finish = pygame.transform.rotate(finish, 90)
         finish = pygame.transform.scale(finish, (30, 75))
         self.screen.blit(finish, (950, 400))
 
-        sprite = pygame.image.load('../car.png')
+        sprite = pygame.image.load('../../car.png')
         sprite = pygame.transform.rotate(sprite, -90)
         sprite = pygame.transform.scale(sprite, (80, 80))
 
