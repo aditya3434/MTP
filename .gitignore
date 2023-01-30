@@ -1,11 +1,8 @@
-__pycache__/
+**/__pycache__/
+**/logs/
 
 SingleAgent/ppo_actor.pth
 SingleAgent/ppo_critic.pth
-SingleAgent/logs
-SingleAgent/__pycache__/
 
-MultiAgent/ppo_actor.pth
-MultiAgent/ppo_critic.pth
-MultiAgent/logs
-MultiAgent/__pycache__/
+MultiAgent/scenario_1/ppo_actor.pth
+MultiAgent/scenario_1/ppo_critic.pth
