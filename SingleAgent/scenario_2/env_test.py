@@ -5,7 +5,7 @@ def get_action():
     a = float(random.randint(0, 10))/10
     b = float(random.randint(-10, 10))/10
 
-    return [0.2, 0]
+    return [0.3, 0]
 
 episodes = 5
 env = convoyEnv()

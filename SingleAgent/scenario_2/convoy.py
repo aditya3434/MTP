@@ -23,7 +23,7 @@ class Vehicle():
             return
 
         self.acc = action[0]
-        self.angle += 5*action[1]*dt
+        self.angle = 0
         self.v += 5*self.acc*dt
 
         if self.v <= 0:
@@ -38,7 +38,7 @@ def dist_euclid(v1, v2):
 class convoyEnv(gym.Env):
 
     def __init__(self):
-        self.action_space = Box(-1, 1, shape=(2,), dtype=np.float32)
+        self.action_space = Box(-1, 1, shape=(1,), dtype=np.float32)
         self.observation_space = Box(-np.inf, np.inf, shape=(3,), dtype=np.float32)
 
         self.back_car = Vehicle(x_initial=0, y_initial=400)
@@ -59,19 +59,19 @@ class convoyEnv(gym.Env):
         done = False
 
         if abs(700-self.ego_car.x) < 350 and self.traffic_light == 1:
-            action = [-0.25, 0]
+            auto_action = [-0.35]
         else:
-            action = [0.2, 0]
+            auto_action = [0.3]
 
         counting_time = pygame.time.get_ticks() - self.start_time
         seconds = (counting_time%60000)/1000
         
-        if seconds > 17 and self.traffic_light == 1:
+        if seconds > 20 and self.traffic_light == 1:
             self.traffic_light = 0
 
         self.ego_car.take_action(action, self.dt)
-        self.back_car.take_action(action, self.dt)
-        self.front_car.take_action(action, self.dt)
+        self.back_car.take_action(auto_action, self.dt)
+        self.front_car.take_action(auto_action, self.dt)
 
         # Reaching goal location 
         if (self.ego_car.x >= 1450):
@@ -89,25 +89,14 @@ class convoyEnv(gym.Env):
             reward -= 100
             done = True
 
-        dist_error = abs(front_dist-back_dist)
-
-        #reward += (self.ego_car.x//200)*10
-
         # Reward for movement
-        if(self.ego_car.v > 1):
+        if self.traffic_light == 0 and self.ego_car.v > 1:
             reward += 1
-
-        if(self.ego_car.angle < 2):
-            reward += 1
-
-        if(self.ego_car.angle > 4):
-            reward -= 1
         
         if(back_dist < 60 or front_dist < 60):
             reward -= 1
-
-        '''if (dist_error >= 2):
-            reward += 1'''
+        else:
+            reward += 1
 
         obs = self.feature_scaling(np.hstack((self.ego_car.x, back_dist, front_dist)))
 
@@ -121,6 +110,7 @@ class convoyEnv(gym.Env):
         self.state_max = np.hstack((1000, 2*GAP, 2*GAP))
         self.state_min = np.hstack((0, 0, 0))
         self.traffic_light = 1
+        self.start_time = pygame.time.get_ticks()
 
         return np.array([0.1, 0.5, 0.5], dtype=np.float32)
 
@@ -158,3 +148,17 @@ class convoyEnv(gym.Env):
 
     def feature_scaling(self, state):
         return (state - self.state_min) / (self.state_max - self.state_min)
+
+    def check(self, action):
+
+        action[0] = np.clip(action[0], -0.5, 0.5)
+
+        if abs(700-self.ego_car.x) < 350 and self.traffic_light == 1:
+            best_action = [-0.25]
+        else:
+            best_action = [0.2]
+
+        if best_action[0]*action[0] < 0:
+            action[0] *= -1
+            
+        return action
