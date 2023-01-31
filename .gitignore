@@ -3,6 +3,8 @@
 
 SingleAgent/scenario_1/ppo_actor.pth
 SingleAgent/scenario_1/ppo_critic.pth
+SingleAgent/scenario_2/ppo_actor.pth
+SingleAgent/scenario_2/ppo_critic.pth
 
 MultiAgent/scenario_1/ppo_actor.pth
 MultiAgent/scenario_1/ppo_critic.pth
