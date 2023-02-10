@@ -215,8 +215,6 @@ class PPO:
 				# Note that rew is short for reward.
 				action, log_prob = self.get_action(obs)
 
-				action = self.env.check(action)
-
 				'''if self.logger["t_so_far"] > 220000:
 					print("Action : ", action, " ; Observation : ", obs)'''
 				
@@ -296,10 +294,11 @@ class PPO:
 		# For more information on how this distribution works, check out Andrew Ng's lecture on it:
 		# https://www.youtube.com/watch?v=JjB58InuTqM
 		dist = MultivariateNormal(mean, self.cov_mat)
-		dist_new = dist
 
 		# Sample an action from the distribution
 		action = dist.sample()
+
+		action = self.env.check(action)
 
 		# Calculate the log probability for that action
 		log_prob = dist.log_prob(action)

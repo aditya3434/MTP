@@ -4,7 +4,7 @@ import numpy as np
 import pygame
 
 FPS = 100
-GAP = 100
+GAP = 150
 COLLISION_DIST = 55
 OFFROAD_DIST = 35
 
@@ -72,6 +72,8 @@ class convoyEnv(gym.Env):
         self.ego_car.take_action(action, self.dt)
         self.back_car.take_action(auto_action, self.dt)
         self.front_car.take_action(auto_action, self.dt)
+
+        print(action)
 
         # Reaching goal location 
         if (self.ego_car.x >= 1450):
@@ -154,11 +156,14 @@ class convoyEnv(gym.Env):
         action[0] = np.clip(action[0], -0.5, 0.5)
 
         if abs(700-self.ego_car.x) < 350 and self.traffic_light == 1:
-            best_action = [-0.25]
+            best_action = [-0.35]
         else:
-            best_action = [0.2]
+            best_action = [0.3]
 
         if best_action[0]*action[0] < 0:
             action[0] *= -1
+
+        if abs(action[0]-best_action[0]) > 0.1:
+            action[0] = best_action[0]
             
         return action
