@@ -61,6 +61,13 @@ class convoyEnv(gym.Env):
         auto_action = self.best_action(self.back_car)
         self.back_car.take_action(auto_action, self.dt)
 
+        best_action = self.best_action(self.ego_car)
+
+        # print(action)
+
+        # if abs(action[0]-best_action[1]) >= 0.5:
+        #     action[0] = best_action[1]
+
         self.ego_car.take_action([0, action[0]], self.dt)
         
         auto_action = self.best_action(self.front_car)
@@ -68,14 +75,17 @@ class convoyEnv(gym.Env):
 
         # Reaching goal location 
         if (self.ego_car.y <= 250):
+            #print("Target reached!")
             reward += 100
             done = True
 
         if (self.ego_car.x >= 800):
+            #print("Wrong turn!")
             reward -= 100
             done = True
         
         if self.ego_car.y <= 450 and self.ego_car.x <= 650:
+            #print("Offroad!")
             reward -= 100
             done = True
 
@@ -83,26 +93,22 @@ class convoyEnv(gym.Env):
         front_dist = dist_euclid(self.ego_car, self.front_car)
 
         if (back_dist < COLLISION_DIST or front_dist < COLLISION_DIST):
+            #print("Collision!")
             reward -= 100
             done = True
 
         if self.ego_car.y-self.front_car.y < 0 and self.ego_car.x >= 650:
+            #print("Overtaken!")
             reward -= 100
             done = True
 
         # Reward for movement
 
-        if self.ego_car.angle > self.front_car.angle:
-            reward -= 1
-
         if self.ego_car.angle <= 3 and self.ego_car.x < 650:
-            reward += 2
+            reward += 0.02
 
-        if self.ego_car.angle <= self.front_car.angle and self.ego_car.x >= 650:
-            reward += 2
-
-        if self.ego_car.x >= 650:
-            reward += 0.05*abs(self.ego_car.angle)
+        if self.ego_car.angle <= self.front_car.angle and abs(self.ego_car.angle-self.front_car.angle) <= 3 and self.ego_car.x >= 650:
+            reward += 0.005*(90-abs(90-self.ego_car.angle))
 
         obs = self.feature_scaling(np.hstack((self.ego_car.angle, back_dist, front_dist)))
 
