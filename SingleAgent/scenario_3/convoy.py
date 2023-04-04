@@ -1,5 +1,6 @@
 import gym
 from gym.spaces import Box
+from math import copysign
 import numpy as np
 import pygame
 
@@ -10,6 +11,13 @@ OFFROAD_DIST = 35
 X_INITIAL = 450
 Y_INITIAL = 512
 V_INITIAL = 20
+
+# Environment variables
+
+gravity_acc = 9.8   # Acceleration due to gravity
+Cr = 0.001           # Coefficient of rolling friction
+Cd = 0.32           # Drag coefficient
+air_density = 1.3   # Air density
 
 class Vehicle():
 
@@ -32,6 +40,34 @@ class Vehicle():
         self.x += self.v*np.cos(self.angle*np.pi/180)*dt
         self.y -= self.v*np.sin(self.angle*np.pi/180)*dt
 
+class ComplexVehicle(Vehicle):
+
+    def __init__(self, x_initial=0, y_initial=0, v_initial=0, angle_initial=0):
+        super().__init__(x_initial, y_initial, v_initial, angle_initial)
+
+        self.mass = 1600         # Car mass
+        self.car_area = 2.4      # Car front area
+        
+
+    def take_action(self, action, dt):
+
+        if action is None:
+            return
+
+        self.acc = action[0]
+        self.angle += 20*action[1]*dt
+
+        v_mps = self.v*(5/18)
+
+        Fr = self.mass*gravity_acc*Cr*copysign(1, self.v)           # Frictional force
+        Fa = 0.5*air_density*Cd*self.car_area*abs(v_mps)*v_mps      # Air resistance
+
+        a_net = self.acc-(Fr+Fa)/self.mass                          # Net acceleration 
+
+        self.v += 5*a_net*dt
+        self.x += self.v*np.cos(self.angle*np.pi/180)*dt
+        self.y -= self.v*np.sin(self.angle*np.pi/180)*dt
+
 def dist_euclid(v1, v2):
     return np.sqrt((v1.x-v2.x)**2+(v1.y-v2.y)**2)
 
@@ -41,17 +77,16 @@ class convoyEnv(gym.Env):
         self.action_space = Box(0, 1, shape=(1,), dtype=np.float32)
         self.observation_space = Box(-np.inf, np.inf, shape=(3,), dtype=np.float32)
 
-        self.back_car = Vehicle(x_initial=X_INITIAL, y_initial=Y_INITIAL, v_initial=V_INITIAL)
-        self.front_car = Vehicle(x_initial=X_INITIAL+2*GAP, y_initial=Y_INITIAL, v_initial=V_INITIAL)
-
-        self.ego_car = Vehicle(x_initial=X_INITIAL+GAP, y_initial=Y_INITIAL, v_initial=V_INITIAL)
+        self.back_car = ComplexVehicle(x_initial=X_INITIAL, y_initial=Y_INITIAL, v_initial=V_INITIAL)
+        self.front_car = ComplexVehicle(x_initial=X_INITIAL+2*GAP, y_initial=Y_INITIAL, v_initial=V_INITIAL)
+        self.ego_car = ComplexVehicle(x_initial=X_INITIAL+GAP, y_initial=Y_INITIAL, v_initial=V_INITIAL)
 
         pygame.init()
         self.clock = pygame.time.Clock()
         self.dt = self.clock.tick(FPS)/1000
         self.screen = pygame.Surface((800, 600))
 
-    def step(self, action):
+    def step(self, action, flag):
 
         reward = 0
         done = False
@@ -61,12 +96,10 @@ class convoyEnv(gym.Env):
         auto_action = self.best_action(self.back_car)
         self.back_car.take_action(auto_action, self.dt)
 
-        best_action = self.best_action(self.ego_car)
+        pid_action = self.pid_controller()
 
-        # print(action)
-
-        # if abs(action[0]-best_action[1]) >= 0.5:
-        #     action[0] = best_action[1]
+        if flag and abs(action[0]-pid_action) >= 0.3:
+            action[0] = pid_action
 
         self.ego_car.take_action([0, action[0]], self.dt)
         
@@ -115,13 +148,12 @@ class convoyEnv(gym.Env):
         return np.array(obs, dtype=np.float32), reward, done, None
 
     def reset(self):
-        self.back_car = Vehicle(x_initial=X_INITIAL, y_initial=Y_INITIAL, v_initial=V_INITIAL)
-        self.front_car = Vehicle(x_initial=X_INITIAL+2*GAP, y_initial=Y_INITIAL, v_initial=V_INITIAL)
-        self.ego_car = Vehicle(x_initial=X_INITIAL+GAP, y_initial=Y_INITIAL, v_initial=V_INITIAL)
+        self.back_car = ComplexVehicle(x_initial=X_INITIAL, y_initial=Y_INITIAL, v_initial=V_INITIAL)
+        self.front_car = ComplexVehicle(x_initial=X_INITIAL+2*GAP, y_initial=Y_INITIAL, v_initial=V_INITIAL)
+        self.ego_car = ComplexVehicle(x_initial=X_INITIAL+GAP, y_initial=Y_INITIAL, v_initial=V_INITIAL)
 
         self.state_max = np.hstack((90, 2*GAP, 2*GAP))
         self.state_min = np.hstack((0, 0, 0))
-        self.traffic_light = 1
         self.start_time = pygame.time.get_ticks()
 
         return np.array([0.1, 0.5, 0.5], dtype=np.float32)
@@ -165,3 +197,14 @@ class convoyEnv(gym.Env):
             return [0.0, 0.5]
         
         return [0.0, 0]
+    
+    def pid_controller(self):
+        car = self.ego_car
+        front_car = self.front_car
+
+        if car.angle > front_car.angle:
+            return 0
+        
+        steer = (front_car.angle-car.angle)/90
+
+        return steer

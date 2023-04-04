@@ -93,7 +93,7 @@ def rollout(policy, env, render):
 
 			# Query deterministic action from policy and run it
 			action, mean = get_action(policy, obs)
-			obs, rew, done, _ = env.step(action)
+			obs, rew, done, _ = env.step(action, False)
 
 			# Sum all episodic rewards as we go along
 			ep_ret += rew

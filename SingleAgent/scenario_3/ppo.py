@@ -215,10 +215,12 @@ class PPO:
 				# Note that rew is short for reward.
 				action, log_prob = self.get_action(obs)
 
-				'''if self.logger["t_so_far"] > 220000:
-					print("Action : ", action, " ; Observation : ", obs)'''
+				flag = False
+
+				if self.logger["i_so_far"] > 25:
+					flag = True
 				
-				obs, rew, done, _ = self.env.step(action)
+				obs, rew, done, _ = self.env.step(action, flag)
 
 				# Track recent reward, action, and action log probability
 				ep_rews.append(rew)
